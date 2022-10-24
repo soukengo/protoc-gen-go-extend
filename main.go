@@ -23,11 +23,21 @@ func main() {
 	if err := proto.Unmarshal(data, g.Request); err != nil {
 		g.Error(err, "parsing input proto")
 	}
+	for _, file := range g.Request.FileToGenerate {
+		g1 := generator.New()
+		g1.Request.FileToGenerate = []string{file}
+		g1.Request.Parameter = g.Request.Parameter
+		g1.Request.ProtoFile = g.Request.ProtoFile
+		g1.Request.CompilerVersion = g.Request.CompilerVersion
+		generate(g1)
+	}
 
+}
+
+func generate(g *generator.Generator) {
 	if len(g.Request.FileToGenerate) == 0 {
 		g.Fail("no files to generate")
 	}
-
 	g.CommandLineParameters(g.Request.GetParameter())
 
 	// Create a wrapped version of the Descriptors and EnumDescriptors that
@@ -40,7 +50,7 @@ func main() {
 	g.GenerateAllFiles()
 
 	// Send back the results.
-	data, err = proto.Marshal(g.Response)
+	data, err := proto.Marshal(g.Response)
 	if err != nil {
 		g.Error(err, "failed to marshal output proto")
 	}
