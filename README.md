@@ -7,5 +7,5 @@ generating setter method for message fields
 
 
 ```shell
-protoc --go-extend_out=plugins=setter:.  --go-extend_opt=paths=source_relative your_proto_file
+protoc --go-extend_out=plugins=setters:.  --go-extend_opt=paths=source_relative your_proto_file
 ```
