@@ -38,7 +38,12 @@ func getMessageFieldType(g *generator.Generator, field *descriptor.FieldDescript
 }
 
 func isMapField(g *generator.Generator, field *descriptor.FieldDescriptorProto) bool {
-	desc := g.ObjectNamed(field.GetTypeName())
+	typeName := field.GetTypeName()
+	// fix repeated field
+	if len(typeName) == 0 {
+		return false
+	}
+	desc := g.ObjectNamed(typeName)
 	if d, ok := desc.(*generator.Descriptor); ok && d.GetOptions().GetMapEntry() {
 		return true
 	}
@@ -47,14 +52,4 @@ func isMapField(g *generator.Generator, field *descriptor.FieldDescriptorProto) 
 
 func isRepeated(field *descriptor.FieldDescriptorProto) bool {
 	return field.Label != nil && *field.Label == descriptor.FieldDescriptorProto_LABEL_REPEATED
-}
-
-func upperFirstLatter(s string) string {
-	if len(s) == 0 {
-		return ""
-	}
-	if len(s) == 1 {
-		return strings.ToUpper(string(s[0]))
-	}
-	return strings.ToUpper(string(s[0])) + s[1:]
 }

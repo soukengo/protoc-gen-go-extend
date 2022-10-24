@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"github.com/golang/protobuf/protoc-gen-go/descriptor"
 	"github.com/golang/protobuf/protoc-gen-go/generator"
+	"go/token"
 )
 
-var name = "setters"
+const (
+	name      = "setters"
+	varSuffix = "_"
+)
 
 var tpl = `func (x * %s) Set%s(%s %s) {
 	if x == nil {
@@ -43,7 +47,11 @@ func (p *Plugin) genMessageCode(m *descriptor.DescriptorProto) {
 	fields := m.Field
 	for _, field := range fields {
 		var typeName = getFieldType(p.gen, field)
-		var fieldName = upperFirstLatter(*field.JsonName)
-		p.gen.P(fmt.Sprintf(tpl, *m.Name, fieldName, *field.JsonName, typeName, fieldName, *field.JsonName))
+		var fieldName = generator.CamelCase(*field.JsonName)
+		var varName = *field.JsonName
+		if t := token.Lookup(varName); t.IsKeyword() {
+			varName = varName + varSuffix
+		}
+		p.gen.P(fmt.Sprintf(tpl, *m.Name, fieldName, varName, typeName, fieldName, varName))
 	}
 }
