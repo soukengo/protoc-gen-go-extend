@@ -41,7 +41,7 @@ func (p *Plugin) genMessageCode(g *protogen.GeneratedFile, m *protogen.Message) 
 		var fieldName = field.GoName
 		var varName = field.Desc.JSONName()
 		if t := token.Lookup(varName); t.IsKeyword() {
-			varName = varName + defaultVarName
+			varName = defaultVarName
 		}
 		g.P(fmt.Sprintf(tpl, m.GoIdent.GoName, fieldName, varName, typeName, fieldName, varName))
 	}
