@@ -1,61 +1,78 @@
+// Copyright 2010 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// protoc-gen-go is a plugin for the Google protocol buffer compiler to generate
+// Go code. Install it by building this program and making it accessible within
+// your PATH with the name:
+//	protoc-gen-go
+//
+// The 'go' suffix becomes part of the argument for the protocol compiler,
+// such that it can be invoked as:
+//	protoc --go_out=paths=source_relative:. path/to/file.proto
+//
+// This generates Go bindings for the protocol buffer defined by file.proto.
+// With that input, the output will be written to:
+//	path/to/file.pb.go
+//
+// See the README and documentation for protocol buffers to learn more:
+//	https://developers.google.com/protocol-buffers/
 package main
 
 import (
-	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/protoc-gen-go/generator"
+	"flag"
+	"fmt"
 	"github.com/soukengo/protoc-gen-go-extend/setters"
-	"io/ioutil"
-	"os"
+	"strings"
+
+	gengo "google.golang.org/protobuf/cmd/protoc-gen-go/internal_gengo"
+	"google.golang.org/protobuf/compiler/protogen"
+)
+
+var (
+	flags        flag.FlagSet
+	plugins      = flags.String("plugins", "", "list of plugins to enable (supported values: setters)")
+	importPrefix = flags.String("import_prefix", "", "prefix to prepend to import paths")
 )
 
 func init() {
-	generator.RegisterPlugin(new(setters.Plugin))
+	registerPlugin(new(setters.Plugin))
 }
 
 func main() {
-	g := generator.New()
-
-	data, err := ioutil.ReadAll(os.Stdin)
-	if err != nil {
-		g.Error(err, "reading input")
+	flag.Parse()
+	importRewriteFunc := func(importPath protogen.GoImportPath) protogen.GoImportPath {
+		switch importPath {
+		case "context", "fmt", "math":
+			return importPath
+		}
+		if *importPrefix != "" {
+			return protogen.GoImportPath(*importPrefix) + importPath
+		}
+		return importPath
 	}
-
-	if err := proto.Unmarshal(data, g.Request); err != nil {
-		g.Error(err, "parsing input proto")
-	}
-	for _, file := range g.Request.FileToGenerate {
-		g1 := generator.New()
-		g1.Request.FileToGenerate = []string{file}
-		g1.Request.Parameter = g.Request.Parameter
-		g1.Request.ProtoFile = g.Request.ProtoFile
-		g1.Request.CompilerVersion = g.Request.CompilerVersion
-		generate(g1)
-	}
-
-}
-
-func generate(g *generator.Generator) {
-	if len(g.Request.FileToGenerate) == 0 {
-		g.Fail("no files to generate")
-	}
-	g.CommandLineParameters(g.Request.GetParameter())
-
-	// Create a wrapped version of the Descriptors and EnumDescriptors that
-	// point to the file that defines them.
-	g.WrapTypes()
-
-	g.SetPackageNames()
-	g.BuildTypeNameMap()
-
-	g.GenerateAllFiles()
-
-	// Send back the results.
-	data, err := proto.Marshal(g.Response)
-	if err != nil {
-		g.Error(err, "failed to marshal output proto")
-	}
-	_, err = os.Stdout.Write(data)
-	if err != nil {
-		g.Error(err, "failed to write output proto")
-	}
+	protogen.Options{
+		ParamFunc:         flags.Set,
+		ImportRewriteFunc: importRewriteFunc,
+	}.Run(func(gen *protogen.Plugin) error {
+		var usedPlugins []Plugin
+		for _, plugin := range strings.Split(*plugins, ",") {
+			p, ok := activePlugins[plugin]
+			if !ok {
+				return fmt.Errorf("protoc-gen-go: unknown plugin %q", plugin)
+			}
+			usedPlugins = append(usedPlugins, p)
+		}
+		for _, f := range gen.Files {
+			if !f.Generate {
+				continue
+			}
+			g := gengo.GenerateFile(gen, f)
+			for _, plugin := range usedPlugins {
+				plugin.Generate(g, f)
+			}
+		}
+		gen.SupportedFeatures = gengo.SupportedFeatures
+		return nil
+	})
 }
